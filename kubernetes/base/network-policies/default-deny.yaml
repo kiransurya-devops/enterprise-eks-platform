@@ -1,0 +1,18 @@
+# =============================================================
+# Default Deny Network Policy
+# Author: Kiran S | AU Technology Consulting
+# Purpose: Zero-trust pod networking baseline
+# All inter-pod traffic is denied unless explicitly allowed
+# =============================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: production
+  annotations:
+    description: "Deny all ingress and egress by default. Add explicit allow policies per service."
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

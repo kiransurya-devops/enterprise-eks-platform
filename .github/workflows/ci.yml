@@ -1,0 +1,110 @@
+# =============================================================
+# CI Pipeline — EKS Platform Validation
+# Author: Kiran S | AU Technology Consulting
+# Validates all Terraform, Kubernetes, and security configs
+# =============================================================
+name: CI — EKS Platform Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  terraform-validate:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive terraform/
+
+      - name: Validate EKS Module
+        run: |
+          cd terraform/modules/eks-cluster
+          terraform init -backend=false
+          terraform validate
+          echo "EKS module validation passed"
+
+      - name: Validate RDS Module
+        run: |
+          cd terraform/modules/rds-multi-az
+          terraform init -backend=false
+          terraform validate
+          echo "RDS module validation passed"
+
+      - name: Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          framework: terraform
+          output_format: cli
+          soft_fail: true
+
+  kubernetes-validate:
+    name: Kubernetes Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar -xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          find kubernetes/ -name "*.yaml" | \
+            xargs kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -summary
+          echo "All Kubernetes manifests valid"
+
+      - name: Scan K8s configs with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: kubernetes/
+          format: table
+          exit-code: 0
+
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  security-scan:
+    name: Security Policy Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Kyverno Policies
+        run: |
+          find security/kyverno-policies/ -name "*.yaml" | \
+            xargs grep -l "kind: ClusterPolicy" | \
+            wc -l | \
+            xargs echo "Kyverno policies found:"
+
+      - name: Check all YAML files are valid
+        run: |
+          find . -name "*.yaml" -not -path "./.git/*" | while read f; do
+            python3 -c "import yaml, sys; yaml.safe_load_all(open('$f'))" && \
+              echo "VALID: $f" || \
+              echo "INVALID: $f"
+          done

@@ -1,0 +1,83 @@
+# =============================================================
+# Kyverno Policy — Enforce Security Context
+# Author: Kiran S | AU Technology Consulting
+# Achieves PCI-DSS aligned pod-level security posture
+# Enforces: non-root, read-only FS, no privilege escalation
+# =============================================================
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-pod-security-context
+spec:
+  validationFailureAction: enforce
+  background: true
+  rules:
+    - name: require-non-root
+      match:
+        any:
+          - resources:
+              kinds: [Deployment, StatefulSet]
+              namespaces: [production]
+      validate:
+        message: "Containers must run as non-root user (runAsNonRoot: true)"
+        pattern:
+          spec:
+            template:
+              spec:
+                securityContext:
+                  runAsNonRoot: true
+
+    - name: require-readonly-filesystem
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [production]
+      validate:
+        message: "Containers must use read-only root filesystem"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - securityContext:
+                      readOnlyRootFilesystem: true
+                      allowPrivilegeEscalation: false
+
+    - name: require-drop-all-capabilities
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [production]
+      validate:
+        message: "Containers must drop ALL Linux capabilities"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - securityContext:
+                      capabilities:
+                        drop: ["ALL"]
+
+    - name: require-resource-limits
+      match:
+        any:
+          - resources:
+              kinds: [Deployment]
+              namespaces: [production]
+      validate:
+        message: "All containers must have CPU and memory limits defined"
+        pattern:
+          spec:
+            template:
+              spec:
+                containers:
+                  - resources:
+                      limits:
+                        memory: "?*"
+                        cpu: "?*"
+                      requests:
+                        memory: "?*"
+                        cpu: "?*"

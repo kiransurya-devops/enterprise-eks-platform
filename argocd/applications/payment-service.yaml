@@ -1,0 +1,38 @@
+# ArgoCD Application — Payment Service
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: payment-service
+  namespace: argocd
+  labels:
+    team: payments
+    environment: production
+spec:
+  project: payments-team
+
+  source:
+    repoURL: https://github.com/kiransurya-devops/enterprise-eks-platform
+    targetRevision: main
+    path: kubernetes/apps/payment-service/overlays/production
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas   # HPA manages this
