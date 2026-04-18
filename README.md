@@ -157,5 +157,5 @@ Resolved critical finding from internal cloud security audit.
 
 ## 👤 Author
 
-**Kiran S** — Senior DevOps Engineer  
+**Kiran S** — DevOps Engineer and Platform Engineer  
 [LinkedIn](https://linkedin.com/in/kiransurya-devops) | [GitHub](https://github.com/kiransurya-devops)
